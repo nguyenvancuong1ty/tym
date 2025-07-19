@@ -65,15 +65,15 @@ function createGlowMaterial(color, size = 128, opacity = 0.55) {
 
 // ---- TẠO CÁC THÀNH PHẦN CỦA SCENE ----
 
-// Glow trung tâm
-const centralGlow = createGlowMaterial("rgba(255,255,255,0.8)", 156, 0.25);
+// Glow trung tâm (giảm độ sáng)
+const centralGlow = createGlowMaterial("rgba(255,255,255,0.3)", 156, 0.1);
 centralGlow.scale.set(8, 8, 1);
 scene.add(centralGlow);
 
-// Các đám mây tinh vân (Nebula) ngẫu nhiên
+// Các đám mây tinh vân (Nebula) ngẫu nhiên (giảm độ sáng)
 for (let i = 0; i < 15; i++) {
   const hue = Math.random() * 360;
-  const color = `hsla(${hue}, 80%, 50%, 0.6)`;
+  const color = `hsla(${hue}, 80%, 50%, 0.2)`; // Giảm opacity từ 0.6 xuống 0.2
   const nebula = createGlowMaterial(color, 256);
   nebula.scale.set(100, 100, 1);
   nebula.position.set(
@@ -92,8 +92,8 @@ const galaxyParameters = {
   spin: 0.5,
   randomness: 0.2,
   randomnessPower: 20,
-  insideColor: new THREE.Color(0xd63ed6),
-  outsideColor: new THREE.Color(0x48b8b8),
+  insideColor: new THREE.Color(0x1a1a1a), // Đen nhạt
+  outsideColor: new THREE.Color(0x333333), // Xám tối
 };
 
 // THÊM ẢNH Ở ĐÂY
@@ -163,9 +163,9 @@ for (let i = 0; i < galaxyParameters.count; i++) {
   positions[i3 + 1] = randomY;
   positions[i3 + 2] = Math.sin(totalAngle) * radius + randomZ;
 
-  const mixedColor = new THREE.Color(0xff66ff);
-  mixedColor.lerp(new THREE.Color(0x66ffff), radius / galaxyParameters.radius);
-  mixedColor.multiplyScalar(0.7 + 0.3 * Math.random());
+  const mixedColor = new THREE.Color(0x2a2a2a); // Màu xám rất tối
+  mixedColor.lerp(new THREE.Color(0x404040), radius / galaxyParameters.radius); // Xám nhạt hơn một chút
+  mixedColor.multiplyScalar(0.1 + 0.1 * Math.random()); // Độ sáng rất thấp
   colors[i3] = mixedColor.r;
   colors[i3 + 1] = mixedColor.g;
   colors[i3 + 2] = mixedColor.b;
@@ -428,6 +428,20 @@ for (let group = 0; group < numGroups; group++) {
     pointsObject.userData.materialFar = materialFar;
     pointsObject.userData.geometryFar = groupGeometryFar;
 
+    // Thêm dữ liệu animation cho ảnh bay (chỉ khi camera xa)
+    pointsObject.userData.animationData = {
+      initialPosition: new THREE.Vector3(cx, cy, cz),
+      floatSpeed: Math.random() * 0.02 + 0.01,
+      floatAmplitude: Math.random() * 2 + 1,
+      rotationSpeed: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.01,
+        (Math.random() - 0.5) * 0.01,
+        (Math.random() - 0.5) * 0.01
+      ),
+      pulseSpeed: Math.random() * 0.03 + 0.02,
+      initialScale: 1.0,
+    };
+
     scene.add(pointsObject);
     // Thêm một vòng tròn vuông góc với vòng hiện tại, dùng lại geometry và material
     const pointsObject2 = new THREE.Points(
@@ -611,6 +625,406 @@ function createRandomCurve() {
   );
 }
 
+// ---- TẠO HỆ THỐNG TRÁI TIM BAY PHẤT PHỚI ----
+let floatingHearts = [];
+
+function createHeartTexture(size = 128) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  // Tạo SVG path cho trái tim đẹp hơn
+  const svgPath = new Path2D(`
+    M ${size * 0.5} ${size * 0.35}
+    C ${size * 0.2} ${size * 0.1} ${size * 0.1} ${size * 0.6} ${size * 0.5} ${
+    size * 0.8
+  }
+    C ${size * 0.9} ${size * 0.6} ${size * 0.8} ${size * 0.1} ${size * 0.5} ${
+    size * 0.35
+  }
+  `);
+
+  // Gradient đẹp mắt
+  const gradient = ctx.createRadialGradient(
+    size * 0.5,
+    size * 0.4,
+    0,
+    size * 0.5,
+    size * 0.4,
+    size * 0.5
+  );
+  gradient.addColorStop(0, "#ff69b4"); // Hồng sáng
+  gradient.addColorStop(0.5, "#ff1493"); // Hồng đậm
+  gradient.addColorStop(1, "#c71585"); // Hồng tối
+
+  ctx.fillStyle = gradient;
+  ctx.fill(svgPath);
+
+  // Thêm viền sáng
+  ctx.strokeStyle = "#ffb6c1";
+  ctx.lineWidth = 3;
+  ctx.stroke(svgPath);
+
+  // Thêm hiệu ứng glow
+  ctx.shadowColor = "#ff69b4";
+  ctx.shadowBlur = 15;
+  ctx.fill(svgPath);
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function createFloatingHeart() {
+  const heartTexture = createHeartTexture();
+  const heartMaterial = new THREE.SpriteMaterial({
+    map: heartTexture,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const heart = new THREE.Sprite(heartMaterial);
+
+  // Vị trí ngẫu nhiên (không gian rất rộng)
+  heart.position.set(
+    (Math.random() - 0.5) * 800,
+    (Math.random() - 0.5) * 800,
+    (Math.random() - 0.5) * 800
+  );
+
+  // Kích thước to hơn nữa
+  const scale = 4.0 + Math.random() * 4.0; // Từ 4x đến 8x
+  heart.scale.set(scale, scale, scale);
+
+  // Dữ liệu animation (chậm hơn và mượt hơn)
+  heart.userData = {
+    speed: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.2, // Chậm hơn
+      (Math.random() - 0.5) * 0.2,
+      (Math.random() - 0.5) * 0.2
+    ),
+    rotationSpeed: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.01, // Xoay chậm hơn
+      (Math.random() - 0.5) * 0.01,
+      (Math.random() - 0.5) * 0.01
+    ),
+    floatSpeed: Math.random() * 0.01 + 0.005, // Nổi chậm hơn
+    floatAmplitude: Math.random() * 0.3 + 0.2,
+    pulseSpeed: Math.random() * 0.015 + 0.01, // Pulse chậm hơn
+    initialScale: scale,
+    life: 0,
+    maxLife: 2000 + Math.random() * 3000, // Sống lâu hơn
+  };
+
+  scene.add(heart);
+  floatingHearts.push(heart);
+}
+
+function animateFloatingHearts(time) {
+  for (let i = floatingHearts.length - 1; i >= 0; i--) {
+    const heart = floatingHearts[i];
+    const userData = heart.userData;
+
+    userData.life++;
+
+    // Xóa trái tim cũ
+    if (userData.life > userData.maxLife) {
+      scene.remove(heart);
+      floatingHearts.splice(i, 1);
+      continue;
+    }
+
+    // Di chuyển
+    heart.position.add(userData.speed);
+
+    // Xoay
+    heart.rotation.x += userData.rotationSpeed.x;
+    heart.rotation.y += userData.rotationSpeed.y;
+    heart.rotation.z += userData.rotationSpeed.z;
+
+    // Hiệu ứng nổi lên xuống
+    const floatOffset =
+      Math.sin(time * userData.floatSpeed) * userData.floatAmplitude;
+    heart.position.y += floatOffset * 0.01;
+
+    // Hiệu ứng pulse (phóng to thu nhỏ)
+    const pulse = Math.sin(time * userData.pulseSpeed) * 0.2 + 1;
+    heart.scale.setScalar(userData.initialScale * pulse);
+
+    // Hiệu ứng fade out khi gần hết đời sống
+    if (userData.life > userData.maxLife * 0.8) {
+      const fadeOut =
+        1 - (userData.life - userData.maxLife * 0.8) / (userData.maxLife * 0.2);
+      heart.material.opacity = fadeOut;
+    }
+
+    // Giới hạn không gian bay (rất rộng cho thật nhiều trái tim)
+    if (Math.abs(heart.position.x) > 400) userData.speed.x *= -1;
+    if (Math.abs(heart.position.y) > 400) userData.speed.y *= -1;
+    if (Math.abs(heart.position.z) > 400) userData.speed.z *= -1;
+  }
+
+  // Tạo trái tim mới (thật nhiều)
+  if (floatingHearts.length < 2000 && Math.random() < 0.1) {
+    createFloatingHeart();
+  }
+}
+
+// Tạo một số trái tim ban đầu (thật nhiều)
+for (let i = 0; i < 1200; i++) {
+  createFloatingHeart();
+}
+
+// ---- TẠO TÀU BAY VÀ NGƯỜI NGOÀI HÀNH TINH ----
+let spaceships = [];
+let aliens = [];
+
+function createSpaceship() {
+  const shipGroup = new THREE.Group();
+
+  // Thân tàu (hình trụ)
+  const bodyGeometry = new THREE.CylinderGeometry(0.5, 1, 3, 8);
+  const bodyMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ff88,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.rotation.z = Math.PI / 2;
+  shipGroup.add(body);
+
+  // Cánh tàu
+  const wingGeometry = new THREE.BoxGeometry(4, 0.1, 1);
+  const wingMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00cc66,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+  const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+  leftWing.position.x = -1.5;
+  rightWing.position.x = 1.5;
+  shipGroup.add(leftWing, rightWing);
+
+  // Động cơ phát sáng
+  const engineGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+  const engineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff6600,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+  const rightEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+  leftEngine.position.set(-1.5, 0, -1.5);
+  rightEngine.position.set(1.5, 0, -1.5);
+  shipGroup.add(leftEngine, rightEngine);
+
+  // Vị trí ngẫu nhiên
+  shipGroup.position.set(
+    (Math.random() - 0.5) * 600,
+    (Math.random() - 0.5) * 600,
+    (Math.random() - 0.5) * 600
+  );
+
+  // Dữ liệu animation
+  shipGroup.userData = {
+    speed: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.3,
+      (Math.random() - 0.5) * 0.3,
+      (Math.random() - 0.5) * 0.3
+    ),
+    rotationSpeed: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.02,
+      (Math.random() - 0.5) * 0.02,
+      (Math.random() - 0.5) * 0.02
+    ),
+    engineGlow: 0,
+  };
+
+  scene.add(shipGroup);
+  spaceships.push(shipGroup);
+}
+
+function createAlien() {
+  const alienGroup = new THREE.Group();
+
+  // Đầu người ngoài hành tinh (hình tròn to)
+  const headGeometry = new THREE.SphereGeometry(1.2, 12, 12);
+  const headMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ffaa,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const head = new THREE.Mesh(headGeometry, headMaterial);
+  alienGroup.add(head);
+
+  // Mắt to
+  const eyeGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+  const eyeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+  const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+  leftEye.position.set(-0.4, 0.3, 0.8);
+  rightEye.position.set(0.4, 0.3, 0.8);
+  alienGroup.add(leftEye, rightEye);
+
+  // Thân (hình trụ nhỏ)
+  const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.5, 2, 8);
+  const bodyMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00dd88,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.position.y = -1.5;
+  alienGroup.add(body);
+
+  // Tay
+  const armGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1.5, 6);
+  const armMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00dd88,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+  const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+  leftArm.position.set(-0.8, -1, 0);
+  rightArm.position.set(0.8, -1, 0);
+  leftArm.rotation.z = Math.PI / 4;
+  rightArm.rotation.z = -Math.PI / 4;
+  alienGroup.add(leftArm, rightArm);
+
+  // Vị trí ngẫu nhiên
+  alienGroup.position.set(
+    (Math.random() - 0.5) * 500,
+    (Math.random() - 0.5) * 500,
+    (Math.random() - 0.5) * 500
+  );
+
+  // Dữ liệu animation
+  alienGroup.userData = {
+    speed: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.2,
+      (Math.random() - 0.5) * 0.2,
+      (Math.random() - 0.5) * 0.2
+    ),
+    floatSpeed: Math.random() * 0.01 + 0.005,
+    floatAmplitude: Math.random() * 1 + 0.5,
+    waveSpeed: Math.random() * 0.02 + 0.01,
+  };
+
+  scene.add(alienGroup);
+  aliens.push(alienGroup);
+}
+
+function animateSpaceshipsAndAliens(time) {
+  // Animate tàu bay
+  spaceships.forEach((ship) => {
+    const userData = ship.userData;
+
+    // Di chuyển
+    ship.position.add(userData.speed);
+
+    // Xoay
+    ship.rotation.x += userData.rotationSpeed.x;
+    ship.rotation.y += userData.rotationSpeed.y;
+    ship.rotation.z += userData.rotationSpeed.z;
+
+    // Hiệu ứng động cơ phát sáng
+    userData.engineGlow = Math.sin(time * 10) * 0.3 + 0.7;
+    ship.children.forEach((child) => {
+      if (child.material && child.material.color.getHex() === 0xff6600) {
+        child.material.opacity = userData.engineGlow;
+      }
+    });
+
+    // Giới hạn không gian bay
+    if (Math.abs(ship.position.x) > 300) userData.speed.x *= -1;
+    if (Math.abs(ship.position.y) > 300) userData.speed.y *= -1;
+    if (Math.abs(ship.position.z) > 300) userData.speed.z *= -1;
+  });
+
+  // Animate người ngoài hành tinh
+  aliens.forEach((alien) => {
+    const userData = alien.userData;
+
+    // Di chuyển
+    alien.position.add(userData.speed);
+
+    // Hiệu ứng nổi lên xuống
+    const floatOffset =
+      Math.sin(time * userData.floatSpeed) * userData.floatAmplitude;
+    alien.position.y += floatOffset * 0.01;
+
+    // Hiệu ứng vẫy tay
+    const leftArm = alien.children[3]; // Tay trái
+    const rightArm = alien.children[4]; // Tay phải
+    if (leftArm && rightArm) {
+      leftArm.rotation.z =
+        Math.PI / 4 + Math.sin(time * userData.waveSpeed) * 0.3;
+      rightArm.rotation.z =
+        -Math.PI / 4 + Math.sin(time * userData.waveSpeed + Math.PI) * 0.3;
+    }
+
+    // Giới hạn không gian bay
+    if (Math.abs(alien.position.x) > 250) userData.speed.x *= -1;
+    if (Math.abs(alien.position.y) > 250) userData.speed.y *= -1;
+    if (Math.abs(alien.position.z) > 250) userData.speed.z *= -1;
+  });
+
+  // Tạo thêm tàu bay và người ngoài hành tinh
+  if (spaceships.length < 8 && Math.random() < 0.005) {
+    createSpaceship();
+  }
+
+  if (aliens.length < 6 && Math.random() < 0.003) {
+    createAlien();
+  }
+}
+
+// Tạo một số tàu bay và người ngoài hành tinh ban đầu
+for (let i = 0; i < 4; i++) {
+  createSpaceship();
+}
+
+for (let i = 0; i < 3; i++) {
+  createAlien();
+}
+
+// ---- ANIMATE ẢNH BAY (CHỈ KHI CAMERA XA) ----
+function animateImages(time) {
+  const cameraDistance = camera.position.length();
+  const shouldAnimate = cameraDistance > 80; // Chỉ animate khi camera xa hơn 80 đơn vị
+
+  scene.traverse((obj) => {
+    if (obj.isPoints && obj.userData.animationData) {
+      const animData = obj.userData.animationData;
+
+      if (shouldAnimate) {
+        // Hiệu ứng nổi lên xuống
+        const floatOffset =
+          Math.sin(time * animData.floatSpeed) * animData.floatAmplitude;
+        obj.position.y = animData.initialPosition.y + floatOffset;
+
+        // Hiệu ứng xoay
+        obj.rotation.x += animData.rotationSpeed.x;
+        obj.rotation.y += animData.rotationSpeed.y;
+        obj.rotation.z += animData.rotationSpeed.z;
+
+        // Hiệu ứng pulse (phóng to thu nhỏ)
+        const pulse = Math.sin(time * animData.pulseSpeed) * 0.2 + 1;
+        obj.scale.setScalar(animData.initialScale * pulse);
+      } else {
+        // Khi camera gần, trở về vị trí ban đầu
+        obj.position.copy(animData.initialPosition);
+        obj.rotation.set(0, 0, 0);
+        obj.scale.setScalar(animData.initialScale);
+      }
+    }
+  });
+}
+
 // ---- TẠO HÀNH TINH TRUNG TÂM ----
 
 // Hàm tạo texture cho hành tinh
@@ -741,7 +1155,7 @@ scene.add(planet);
 
 // ---- TẠO CÁC VÒNG CHỮ QUAY QUANH HÀNH TINH ----
 const ringTexts = [
-  "TÊN CHO VÒNG CHỮ QUAY QUANH HÀNH TINH",
+  "EM NGÀ XYNH GÁI 😒😒😒",
   ...(window.dataLove2Loveloom && window.dataLove2Loveloom.data.ringTexts
     ? window.dataLove2Loveloom.data.ringTexts
     : []),
@@ -800,13 +1214,13 @@ function createTextRings() {
     // ---- Kết thúc logic phân tích font ----
 
     // ---- Tạo texture chữ động ----
-    const textureHeight = 200;
-    const fontSize = Math.max(120, 0.9 * textureHeight);
+    const textureHeight = 280; // Tăng từ 200 lên 280
+    const fontSize = Math.max(160, 0.9 * textureHeight); // Tăng từ 120 lên 160
 
     // Đo chiều rộng của text để lặp lại
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d");
-    tempCtx.font = `bold ${fontSize}px Arial, sans-serif`;
+    tempCtx.font = `900 ${fontSize}px Arial, sans-serif`; // Đồng bộ font weight
     let singleText = ringTexts[i % ringTexts.length];
     const separator = "   ";
     let repeatedTextSegment = singleText + separator;
@@ -833,20 +1247,20 @@ function createTextRings() {
     const ctx = textCanvas.getContext("2d");
 
     ctx.clearRect(0, 0, textCanvas.width, textureHeight);
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    ctx.fillStyle = "white";
+    ctx.font = `900 ${fontSize}px Arial, sans-serif`; // Tăng font weight từ bold thành 900
+    ctx.fillStyle = "#007e11"; // Đổi màu chữ thành vàng gold dễ nhìn
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
 
-    // Hiệu ứng glow cho chữ
-    ctx.shadowColor = "#e0b3ff";
-    ctx.shadowBlur = 24;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = "#fff";
+    // Hiệu ứng glow cho chữ - màu vàng cam
+    ctx.shadowColor = "#FFA500"; // Màu cam
+    ctx.shadowBlur = 30;
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#FF8C00"; // Màu cam đậm
     ctx.strokeText(fullText, 0, textureHeight * 0.8);
 
-    ctx.shadowColor = "#ffb3de";
-    ctx.shadowBlur = 16;
+    ctx.shadowColor = "#007e11"; // Màu vàng gold
+    ctx.shadowBlur = 20;
     ctx.fillText(fullText, 0, textureHeight * 0.8);
 
     const ringTexture = new THREE.CanvasTexture(textCanvas);
@@ -878,7 +1292,7 @@ function createTextRings() {
     ringGroup.userData = {
       ringRadius: ringRadius,
       angleOffset: 0.15 * Math.PI * 0.5,
-      speed: 0.008, // Tốc độ quay
+      speed: 0.003, // Giảm tốc độ quay từ 0.008 xuống 0.003 để dễ đọc hơn
       tiltSpeed: 0,
       rollSpeed: 0,
       pitchSpeed: 0, // Tốc độ lắc
@@ -1099,6 +1513,18 @@ function animate() {
   // Cập nhật icon gợi ý
   animateHintIcon(time);
 
+  // Cập nhật trái tim bay phất phới
+  animateFloatingHearts(time);
+
+  // Cập nhật ảnh bay (chỉ khi camera xa)
+  animateImages(time);
+
+  // Cập nhật tàu bay và người ngoài hành tinh
+  animateSpaceshipsAndAliens(time);
+
+  // Cập nhật hiệu ứng sinh nhật
+  animateBirthdayEffects(time);
+
   controls.update();
   planet.material.uniforms.time.value = time * 0.5;
 
@@ -1214,6 +1640,50 @@ function animate() {
     createShootingStar();
   }
 
+  // Tạo thêm hiệu ứng sinh nhật liên tục
+  if (isRoomOut) {
+    if (Math.random() < 0.015) {
+      // Giảm từ 0.08 xuống 0.015
+      birthdayEffects.push(createFirework());
+    }
+
+    if (Math.random() < 0.01) {
+      // Giảm từ 0.06 xuống 0.01
+      birthdayEffects.push(createConfetti());
+    }
+
+    if (Math.random() < 0.008) {
+      // Giảm từ 0.05 xuống 0.008
+      birthdayEffects.push(createSparkles());
+    }
+
+    if (Math.random() < 0.03) {
+      // Tăng từ 0.005 lên 0.03 (tăng 6 lần)
+      birthdayEffects.push(createBirthdayText());
+    }
+  } else {
+    // Tạo hiệu ứng ngay cả khi chưa room out (với tần suất thấp hơn)
+    if (Math.random() < 0.005) {
+      // Giảm từ 0.02 xuống 0.005
+      birthdayEffects.push(createFirework());
+    }
+
+    if (Math.random() < 0.003) {
+      // Giảm từ 0.015 xuống 0.003
+      birthdayEffects.push(createConfetti());
+    }
+
+    if (Math.random() < 0.002) {
+      // Giảm từ 0.01 xuống 0.002
+      birthdayEffects.push(createSparkles());
+    }
+
+    if (Math.random() < 0.02) {
+      // Tăng từ 0.001 lên 0.02 (tăng 20 lần)
+      birthdayEffects.push(createBirthdayText());
+    }
+  }
+
   // Logic chuyển đổi material cho các nhóm điểm trái tim
   scene.traverse((obj) => {
     if (obj.isPoints && obj.userData.materialNear && obj.userData.materialFar) {
@@ -1318,13 +1788,13 @@ function startCameraAnimation() {
   const midPos2 = { x: startPos.x, y: 0, z: 160 };
   const endPos = { x: -40, y: 100, z: 100 };
 
-  const duration1 = 0.2;
-  const duration2 = 0.55;
-  const duration3 = 0.4;
+  const duration1 = 0.4; // Tăng từ 0.2 lên 0.4 (chậm hơn)
+  const duration2 = 0.8; // Tăng từ 0.55 lên 0.8 (chậm hơn)
+  const duration3 = 0.6; // Tăng từ 0.4 lên 0.6 (chậm hơn)
   let progress = 0;
 
   function animatePath() {
-    progress += 0.00101;
+    progress += 0.0008; // Giảm từ 0.00101 xuống 0.0008 (chậm hơn)
     let newPos;
 
     if (progress < duration1) {
@@ -1370,15 +1840,319 @@ function startCameraAnimation() {
   animatePath();
 }
 
+// Tạo hiệu ứng pháo hoa
+function createFirework() {
+  const firework = new THREE.Group();
+  const particleCount = 25; // Giảm từ 50 xuống 25
+  const particles = [];
+
+  // Vị trí ngẫu nhiên cho pháo hoa
+  const fireworkX = (Math.random() - 0.5) * 200;
+  const fireworkY = Math.random() * 100 + 50;
+  const fireworkZ = (Math.random() - 0.5) * 200;
+
+  for (let i = 0; i < particleCount; i++) {
+    const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setHSL(Math.random(), 1, 0.5),
+      transparent: true,
+      opacity: 1,
+    });
+    const particle = new THREE.Mesh(geometry, material);
+
+    // Vị trí ngẫu nhiên xung quanh điểm pháo hoa
+    particle.position.set(
+      fireworkX + (Math.random() - 0.5) * 50,
+      fireworkY + (Math.random() - 0.5) * 50,
+      fireworkZ + (Math.random() - 0.5) * 50
+    );
+
+    particle.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        Math.random() * 3 + 1,
+        (Math.random() - 0.5) * 2
+      ),
+      life: 0,
+      maxLife: 120,
+      originalColor: material.color.clone(),
+    };
+
+    particles.push(particle);
+    firework.add(particle);
+  }
+
+  firework.userData = { particles, life: 0, maxLife: 300 }; // Tăng từ 120 lên 300
+  scene.add(firework);
+  return firework;
+}
+
+// Tạo chữ "HAPPY BIRTHDAY" bay lên
+function createBirthdayText() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = "bold 42px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // Gradient text
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  gradient.addColorStop(0, "#ff6b9d");
+  gradient.addColorStop(0.5, "#ffd93d");
+  gradient.addColorStop(1, "#6bcf7f");
+
+  ctx.fillStyle = gradient;
+  ctx.fillText("🎁🎁HAPPY BIRTHDAY!🎆🎆", canvas.width / 2, canvas.height / 2);
+
+  // Glow effect
+  ctx.shadowColor = "#ff6b9d";
+  ctx.shadowBlur = 20;
+  ctx.fillText("🎁🎁HAPPY BIRTHDAY!🎆🎆", canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+
+  const geometry = new THREE.PlaneGeometry(32, 5);
+  const textMesh = new THREE.Mesh(geometry, material);
+
+  // Vị trí ngẫu nhiên cho chữ
+  textMesh.position.set(
+    (Math.random() - 0.5) * 150,
+    Math.random() * 80 + 20,
+    (Math.random() - 0.5) * 150
+  );
+  textMesh.userData = {
+    velocity: new THREE.Vector3(0, 0.5, 0),
+    life: 0,
+    maxLife: 400, // Tăng từ 180 lên 400
+  };
+
+  scene.add(textMesh);
+  return textMesh;
+}
+
+// Tạo hiệu ứng confetti
+function createConfetti() {
+  const confettiGroup = new THREE.Group();
+  const confettiCount = 50; // Giảm từ 100 xuống 50
+
+  // Vị trí ngẫu nhiên cho confetti
+  const confettiX = (Math.random() - 0.5) * 200;
+  const confettiY = Math.random() * 100 + 50;
+  const confettiZ = (Math.random() - 0.5) * 200;
+
+  for (let i = 0; i < confettiCount; i++) {
+    const geometry = new THREE.PlaneGeometry(0.3, 0.1);
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setHSL(Math.random(), 1, 0.6),
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const confetti = new THREE.Mesh(geometry, material);
+    confetti.position.set(
+      confettiX + (Math.random() - 0.5) * 40,
+      confettiY + (Math.random() - 0.5) * 40,
+      confettiZ + (Math.random() - 0.5) * 40
+    );
+
+    confetti.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        -Math.random() * 0.3 - 0.1,
+        (Math.random() - 0.5) * 0.5
+      ),
+      rotation: new THREE.Vector3(
+        Math.random() * 0.1,
+        Math.random() * 0.1,
+        Math.random() * 0.1
+      ),
+      life: 0,
+      maxLife: 200,
+    };
+
+    confettiGroup.add(confetti);
+  }
+
+  confettiGroup.userData = { life: 0, maxLife: 350 }; // Tăng từ 200 lên 350
+  scene.add(confettiGroup);
+  return confettiGroup;
+}
+
+// Tạo hiệu ứng sparkles
+function createSparkles() {
+  const sparkleGroup = new THREE.Group();
+  const sparkleCount = 40; // Giảm từ 80 xuống 40
+
+  // Vị trí ngẫu nhiên cho sparkles
+  const sparkleX = (Math.random() - 0.5) * 200;
+  const sparkleY = (Math.random() - 0.5) * 200;
+  const sparkleZ = (Math.random() - 0.5) * 200;
+
+  for (let i = 0; i < sparkleCount; i++) {
+    const geometry = new THREE.SphereGeometry(0.05, 4, 4);
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setHSL(Math.random() * 0.1 + 0.5, 1, 0.8),
+      transparent: true,
+      opacity: 1,
+    });
+
+    const sparkle = new THREE.Mesh(geometry, material);
+    sparkle.position.set(
+      sparkleX + (Math.random() - 0.5) * 60,
+      sparkleY + (Math.random() - 0.5) * 60,
+      sparkleZ + (Math.random() - 0.5) * 60
+    );
+
+    sparkle.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 0.3
+      ),
+      pulse: Math.random() * Math.PI * 2,
+      life: 0,
+      maxLife: 300,
+    };
+
+    sparkleGroup.add(sparkle);
+  }
+
+  sparkleGroup.userData = { life: 0, maxLife: 500 }; // Tăng từ 300 lên 500
+  scene.add(sparkleGroup);
+  return sparkleGroup;
+}
+
+// Mảng chứa các hiệu ứng
+let birthdayEffects = [];
+let isRoomOut = false; // Biến theo dõi trạng thái room out
+
+// Hàm animate cho các hiệu ứng sinh nhật
+function animateBirthdayEffects(time) {
+  for (let i = birthdayEffects.length - 1; i >= 0; i--) {
+    const effect = birthdayEffects[i];
+
+    if (!effect || !effect.userData) continue;
+
+    effect.userData.life++;
+
+    // Xóa hiệu ứng khi hết thời gian và tạo hiệu ứng mới
+    if (effect.userData.life >= effect.userData.maxLife) {
+      scene.remove(effect);
+      birthdayEffects.splice(i, 1);
+
+      // Tạo hiệu ứng mới ngay lập tức để thay thế (với tần suất thấp hơn)
+      if (Math.random() < 0.15) {
+        // Giảm từ 0.3 xuống 0.15
+        birthdayEffects.push(createFirework());
+      } else if (Math.random() < 0.15) {
+        // Giảm từ 0.3 xuống 0.15
+        birthdayEffects.push(createConfetti());
+      } else if (Math.random() < 0.15) {
+        // Giảm từ 0.3 xuống 0.15
+        birthdayEffects.push(createSparkles());
+      } else if (Math.random() < 0.25) {
+        // Tăng từ 0.1 lên 0.25 (tăng 2.5 lần)
+        birthdayEffects.push(createBirthdayText());
+      }
+      continue;
+    }
+
+    // Animate pháo hoa
+    if (effect.userData.particles) {
+      effect.userData.particles.forEach((particle) => {
+        particle.userData.life++;
+
+        // Cập nhật vị trí
+        particle.position.add(particle.userData.velocity);
+        particle.userData.velocity.y -= 0.02; // Gravity
+
+        // Fade out
+        const lifeRatio = particle.userData.life / particle.userData.maxLife;
+        particle.material.opacity = 1 - lifeRatio;
+
+        // Thay đổi màu sắc
+        const hue = (time * 0.5 + particle.userData.life * 0.1) % 1;
+        particle.material.color.setHSL(hue, 1, 0.5);
+      });
+    }
+
+    // Animate chữ "HAPPY BIRTHDAY"
+    if (effect.userData.velocity) {
+      effect.position.add(effect.userData.velocity);
+      effect.userData.velocity.y -= 0.01; // Gravity nhẹ
+
+      // Xoay nhẹ
+      effect.rotation.z = Math.sin(time * 2) * 0.1;
+
+      // Pulse effect
+      const scale = 1 + Math.sin(time * 3) * 0.1;
+      effect.scale.setScalar(scale);
+    }
+
+    // Animate confetti
+    if (effect.children && effect.children.length > 100) {
+      // Confetti có nhiều children
+      effect.children.forEach((confetti) => {
+        if (confetti.userData.velocity) {
+          confetti.position.add(confetti.userData.velocity);
+          confetti.userData.velocity.y -= 0.015; // Gravity
+
+          // Xoay confetti
+          confetti.rotation.x += confetti.userData.rotation.x;
+          confetti.rotation.y += confetti.userData.rotation.y;
+          confetti.rotation.z += confetti.userData.rotation.z;
+
+          // Fade out
+          const lifeRatio = confetti.userData.life / confetti.userData.maxLife;
+          confetti.material.opacity = 0.8 * (1 - lifeRatio);
+
+          confetti.userData.life++;
+        }
+      });
+    }
+
+    // Animate sparkles
+    if (effect.children && effect.children.length <= 80) {
+      // Sparkles có ít children hơn
+      effect.children.forEach((sparkle) => {
+        if (sparkle.userData.velocity) {
+          sparkle.position.add(sparkle.userData.velocity);
+
+          // Pulse effect
+          const pulse = Math.sin(time * 4 + sparkle.userData.pulse) * 0.5 + 0.5;
+          sparkle.material.opacity = pulse;
+
+          // Thay đổi màu sắc
+          const hue = (time * 0.3 + sparkle.userData.pulse) % 1;
+          sparkle.material.color.setHSL(hue, 1, 0.8);
+
+          sparkle.userData.life++;
+        }
+      });
+    }
+  }
+}
+
 // Hàm room out (lùi ra xa để nhìn rõ ảnh)
 function startCameraRoomOut(fromPos) {
   // Vị trí lùi ra, bạn có thể chỉnh lại nếu muốn xa/cận hơn
   const outPos = { x: 0, y: 40, z: 180 };
-  const duration = 1.2; // thời gian lùi ra
+  const duration = 0.8; // Giảm từ 1.2 xuống 0.8 (nhanh hơn)
   let progress = 0;
 
   function animateOut() {
-    progress += 0.0012;
+    progress += 0.0015; // Tăng từ 0.0012 lên 0.0015 (nhanh hơn)
     let t = Math.min(progress / duration, 1);
     // Ease in-out
     let easedT = 0.5 - 0.5 * Math.cos(Math.PI * t);
@@ -1389,6 +2163,67 @@ function startCameraRoomOut(fromPos) {
     };
     camera.position.set(newPos.x, newPos.y, newPos.z);
     camera.lookAt(0, 0, 0);
+
+    // Khi camera đã room out xong, bắt đầu hiệu ứng sinh nhật
+    if (t >= 0.05) {
+      // Giảm từ 0.2 xuống 0.05 (sớm hơn nhiều)
+      isRoomOut = true; // Đánh dấu đã room out
+    }
+
+    if (isRoomOut) {
+      // Tạo hiệu ứng sinh nhật liên tục với tần suất vừa phải
+      if (Math.random() < 0.02) {
+        // Giảm từ 0.08 xuống 0.02
+        birthdayEffects.push(createFirework());
+      }
+
+      if (Math.random() < 0.008) {
+        // Giảm từ 0.03 xuống 0.008
+        birthdayEffects.push(createBirthdayText());
+      }
+
+      if (Math.random() < 0.015) {
+        // Giảm từ 0.06 xuống 0.015
+        birthdayEffects.push(createConfetti());
+      }
+
+      if (Math.random() < 0.012) {
+        // Giảm từ 0.05 xuống 0.012
+        birthdayEffects.push(createSparkles());
+      }
+
+      // Thêm hiệu ứng âm thanh nhỏ (nếu có thể)
+      if (Math.random() < 0.005) {
+        // 0.5% chance mỗi frame
+        try {
+          const audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(
+            200,
+            audioContext.currentTime + 0.3
+          );
+
+          gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            audioContext.currentTime + 0.3
+          );
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.3);
+        } catch (e) {
+          // Bỏ qua nếu không thể tạo âm thanh
+        }
+      }
+    }
+
     if (t < 1) {
       requestAnimationFrame(animateOut);
     } else {
@@ -1405,14 +2240,14 @@ function startCameraRoomOut(fromPos) {
 
 // Hàm zoom in lại vào gần các hình ảnh/trái tim
 function startCameraRoomInAgain(fromPos) {
-  const inPos = { x: -1.2722584825305696, y: 0.6287088547494228, z: 35 }; // vị trí nghiêng từ trên xuống
+  const inPos = { x: -1.2722584825305696, y: 0.6287088547494228, z: 40 }; // vị trí nghiêng từ trên xuống
   const lookAtTarget = { x: 0, y: 10, z: 0 }; // nhìn hơi xuống dưới
 
-  const duration = 1.0;
+  const duration = 0.7; // Giảm từ 1.0 xuống 0.7 (nhanh hơn)
   let progress = 0;
 
   function animateIn() {
-    progress += 0.0012;
+    progress += 0.0015; // Tăng từ 0.0012 lên 0.0015 (nhanh hơn)
     let t = Math.min(progress / duration, 1);
     let easedT = 0.5 - 0.5 * Math.cos(Math.PI * t);
     const newPos = {
@@ -1430,6 +2265,7 @@ function startCameraRoomInAgain(fromPos) {
       controls.target.set(lookAtTarget.x, lookAtTarget.y, lookAtTarget.z);
       controls.update();
       controls.enabled = true;
+      isRoomOut = false; // Reset trạng thái room out
     }
   }
   animateIn();
@@ -1504,6 +2340,9 @@ function onCanvasClick(event) {
     if (starField && starField.geometry) {
       starField.geometry.setDrawRange(0, originalStarCount);
     }
+
+    // Bắt đầu hiệu ứng sinh nhật ngay lập tức
+    isRoomOut = true;
   } else if (introStarted) {
     const heartIntersects = raycaster.intersectObjects(heartPointClouds);
     if (heartIntersects.length > 0) {
