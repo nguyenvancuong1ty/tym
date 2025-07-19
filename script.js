@@ -1525,6 +1525,9 @@ function animate() {
   // Cập nhật hiệu ứng sinh nhật
   animateBirthdayEffects(time);
 
+  // Cập nhật hộp quà
+  animateGiftBoxes(time);
+
   controls.update();
   planet.material.uniforms.time.value = time * 0.5;
 
@@ -1941,6 +1944,221 @@ function createBirthdayText() {
   return textMesh;
 }
 
+// Tạo hộp quà có thể click
+function createGiftBox() {
+  // Sử dụng hình ảnh gift.png thay vì vẽ
+  const textureLoader = new THREE.TextureLoader();
+  const texture = textureLoader.load("image/gift.png");
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+
+  const geometry = new THREE.PlaneGeometry(8, 8); // Tăng từ 3x3 lên 8x8
+  const giftBox = new THREE.Mesh(geometry, material);
+
+  // Vị trí gần quả cầu nhưng cách nhau
+  const angle = (giftBoxes.length * 120) % 360; // Mỗi hộp cách nhau 120 độ
+  const radius = 30 + Math.random() * 10; // Bán kính 30-40
+  const x = Math.cos((angle * Math.PI) / 180) * radius;
+  const z = Math.sin((angle * Math.PI) / 180) * radius;
+  const y = 15 + Math.random() * 10; // Cao độ 15-25
+
+  giftBox.position.set(x, y, z);
+
+  // Thêm hiệu ứng xoay nhẹ
+  giftBox.rotation.y = Math.random() * Math.PI * 2;
+  giftBox.rotation.z = Math.random() * 0.2 - 0.1;
+
+  giftBox.userData = {
+    type: "giftBox",
+    clicked: false,
+    originalY: giftBox.position.y,
+    floatSpeed: 0.02 + Math.random() * 0.03,
+    rotationSpeed: 0.01 + Math.random() * 0.02,
+  };
+
+  scene.add(giftBox);
+  return giftBox;
+}
+
+function createGiftReward(isFirstBox = false) {
+  if (isFirstBox) {
+    return "😄 Chúc bạn may mắn lần sau! 😄";
+  }
+
+  const rewards = [
+    "🎉 Chúc mừng sinh nhật! 🎉",
+    "🎁 Chúc bạn một ngày sinh nhật tuyệt vời! 🎁",
+    "🌟 Mong rằng năm mới sẽ mang đến nhiều niềm vui! 🌟",
+    "💝 Chúc bạn luôn hạnh phúc và thành công! 💝",
+    "🎊 Happy Birthday! Wishing you all the best! 🎊",
+    "🎈 Chúc mừng sinh nhật! Mong rằng mọi ước mơ sẽ thành hiện thực! 🎈",
+    "🎯 Lần sau sẽ trúng lớn! 🎯",
+    "🍀 Chúc bạn may mắn! 🍀",
+    "✨ Có thể lần sau sẽ tốt hơn! ✨",
+  ];
+
+  return rewards[Math.floor(Math.random() * rewards.length)];
+}
+
+// Biến đếm số hộp quà đã click
+let giftBoxesClicked = 0;
+let totalGiftBoxes = 0;
+
+// Hàm reset để cho phép click tiếp
+function resetGiftBoxClick() {
+  giftBoxesClicked = 0;
+  showGiftReward("💕 Giữ lời hứa đấy cưng 😁🤭🤭 💕");
+}
+
+// Hàm nhảy modal ra vị trí khác
+function jumpModalToNewPosition(popup) {
+  // Tạo vị trí ngẫu nhiên cho modal
+  const newX = (Math.random() - 0.5) * 200; // -100 đến 100
+  const newY = (Math.random() - 0.5) * 100; // -50 đến 50
+
+  // Chỉ cập nhật vị trí modal, không thay đổi nội dung
+  popup.style.transform = `translate(calc(-50% + ${newX}px), calc(-50% + ${newY}px))`;
+}
+
+// Hàm nhảy hộp quà đến vị trí khác
+function jumpGiftBoxesToNewPosition() {
+  giftBoxes.forEach((giftBox, index) => {
+    if (!giftBox.userData.clicked) {
+      // Nhảy đến vị trí mới gần quả cầu nhưng khác vị trí cũ
+      const newAngle = Math.random() * Math.PI * 2;
+      const newRadius = 35 + Math.random() * 15; // Gần hơn một chút
+      const newX = Math.cos(newAngle) * newRadius;
+      const newZ = Math.sin(newAngle) * newRadius;
+      const newY = 20 + Math.random() * 15;
+
+      // Hiệu ứng nhảy
+      giftBox.position.set(newX, newY, newZ);
+
+      // Đánh dấu không thể click nữa
+      giftBox.userData.clicked = true;
+      giftBox.userData.jumped = true; // Đánh dấu đã nhảy
+    }
+  });
+  showGiftReward("😄 Hộp quà đã nhảy đến vị trí khác rồi!");
+}
+
+function showGiftReward(message, showButtons = false) {
+  // Tạo popup thông báo
+  const popup = document.createElement("div");
+  popup.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #ff6b9d, #ffd93d);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    z-index: 10000;
+    animation: popupIn 0.5s ease-out;
+    max-width: 400px;
+    word-wrap: break-word;
+  `;
+
+  let popupContent = message;
+
+  if (showButtons) {
+    popupContent = `
+      <div>${message}</div>
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <button id="acceptKiss" style="
+          background: #4CAF50;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: bold;
+        ">💋 Được ok :))</button>
+        <button id="skipKiss" style="
+          background: #f44336;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: bold;
+        ">❌ Mơ đi cưng :))</button>
+      </div>
+    `;
+  }
+
+  popup.innerHTML = popupContent;
+
+  // Thêm CSS animation
+  const style = document.createElement("style");
+  style.textContent = `
+    @keyframes popupIn {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+  `;
+  document.head.appendChild(style);
+
+  document.body.appendChild(popup);
+
+  // Thêm event listeners cho các nút nếu có
+  if (showButtons) {
+    const acceptBtn = document.getElementById("acceptKiss");
+    const skipBtn = document.getElementById("skipKiss");
+
+    acceptBtn.addEventListener("click", () => {
+      resetGiftBoxClick();
+      document.body.removeChild(popup);
+    });
+
+    skipBtn.addEventListener("click", () => {
+      // Chỉ nhảy modal ra vị trí khác, không thay đổi nội dung
+      jumpModalToNewPosition(popup);
+    });
+  } else {
+    // Tự động ẩn sau 3 giây cho thông báo thường
+    setTimeout(() => {
+      popup.style.animation = "popupOut 0.5s ease-in";
+      popup.style.animationFillMode = "forwards";
+
+      const popupOutStyle = document.createElement("style");
+      popupOutStyle.textContent = `
+        @keyframes popupOut {
+          from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+          }
+        }
+      `;
+      document.head.appendChild(popupOutStyle);
+
+      setTimeout(() => {
+        document.body.removeChild(popup);
+      }, 500);
+    }, 3000);
+  }
+}
+
 // Tạo hiệu ứng confetti
 function createConfetti() {
   const confettiGroup = new THREE.Group();
@@ -2035,6 +2253,7 @@ function createSparkles() {
 
 // Mảng chứa các hiệu ứng
 let birthdayEffects = [];
+let giftBoxes = []; // Mảng chứa các hộp quà
 let isRoomOut = false; // Biến theo dõi trạng thái room out
 
 // Hàm animate cho các hiệu ứng sinh nhật
@@ -2141,6 +2360,42 @@ function animateBirthdayEffects(time) {
         }
       });
     }
+  }
+}
+
+// Hàm animate cho các hộp quà
+function animateGiftBoxes(time) {
+  for (let i = giftBoxes.length - 1; i >= 0; i--) {
+    const giftBox = giftBoxes[i];
+
+    if (!giftBox || !giftBox.userData) continue;
+
+    // Hiệu ứng bay lên xuống
+    giftBox.position.y =
+      giftBox.userData.originalY +
+      Math.sin(time * giftBox.userData.floatSpeed) * 2;
+
+    // Hiệu ứng xoay nhẹ
+    giftBox.rotation.y += giftBox.userData.rotationSpeed;
+    giftBox.rotation.z = Math.sin(time * 2) * 0.1;
+
+    // Hiệu ứng pulse
+    const scale = 1 + Math.sin(time * 3) * 0.1;
+    giftBox.scale.setScalar(scale);
+  }
+}
+
+// Hàm tạo hộp quà sau khi hiệu ứng sinh nhật hoàn thành
+function spawnGiftBoxes() {
+  // Tạo 3-5 hộp quà (ít hơn để dễ nhìn)
+  const giftCount = 3 + Math.floor(Math.random() * 3);
+  totalGiftBoxes = giftCount;
+  giftBoxesClicked = 0; // Reset số hộp đã click
+
+  for (let i = 0; i < giftCount; i++) {
+    setTimeout(() => {
+      giftBoxes.push(createGiftBox());
+    }, i * 300); // Tạo từng hộp quà cách nhau 0.3 giây (nhanh hơn)
   }
 }
 
@@ -2266,6 +2521,11 @@ function startCameraRoomInAgain(fromPos) {
       controls.update();
       controls.enabled = true;
       isRoomOut = false; // Reset trạng thái room out
+
+      // Tạo hộp quà sau khi room in hoàn thành
+      setTimeout(() => {
+        spawnGiftBoxes();
+      }, 2000);
     }
   }
   animateIn();
@@ -2297,12 +2557,54 @@ function requestFullScreen() {
   }
 }
 function onCanvasClick(event) {
-  if (introStarted) return;
-
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
+
+  // Kiểm tra click vào hộp quà trước
+  if (introStarted && giftBoxes.length > 0) {
+    const giftBoxIntersects = raycaster.intersectObjects(giftBoxes);
+    if (giftBoxIntersects.length > 0) {
+      const clickedGiftBox = giftBoxIntersects[0].object;
+
+      if (!clickedGiftBox.userData.clicked) {
+        // Kiểm tra xem đã click đủ hộp quà chưa
+        if (giftBoxesClicked >= 1) {
+          // Đã click 1 hộp, yêu cầu hôn với nút chọn
+          showGiftReward("💋 Hôn 1 miếng để mở hộp quà tiếp theo! 💋", true);
+          return;
+        }
+
+        // Đánh dấu đã click
+        clickedGiftBox.userData.clicked = true;
+        giftBoxesClicked++;
+
+        // Hiệu ứng khi click
+        clickedGiftBox.scale.setScalar(1.5);
+        setTimeout(() => {
+          clickedGiftBox.scale.setScalar(1);
+        }, 200);
+
+        // Hiển thị phần thưởng (hộp đầu tiên luôn là may mắn lần sau)
+        const reward = createGiftReward(giftBoxesClicked === 1);
+        showGiftReward(reward);
+
+        // Xóa hộp quà sau khi click
+        setTimeout(() => {
+          scene.remove(clickedGiftBox);
+          const index = giftBoxes.indexOf(clickedGiftBox);
+          if (index > -1) {
+            giftBoxes.splice(index, 1);
+          }
+        }, 1000);
+
+        return;
+      }
+    }
+  }
+
+  if (introStarted) return;
 
   const intersects = raycaster.intersectObject(planet);
 
@@ -2343,6 +2645,8 @@ function onCanvasClick(event) {
 
     // Bắt đầu hiệu ứng sinh nhật ngay lập tức
     isRoomOut = true;
+
+    // Hộp quà sẽ xuất hiện sau khi room in hoàn thành
   } else if (introStarted) {
     const heartIntersects = raycaster.intersectObjects(heartPointClouds);
     if (heartIntersects.length > 0) {
