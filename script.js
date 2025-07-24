@@ -1983,24 +1983,16 @@ function createGiftBox() {
   return giftBox;
 }
 
-function createGiftReward(isFirstBox = false) {
-  if (isFirstBox) {
+function createGiftReward(count) {
+  if (count === 1) {
     return "😄 Chúc bạn may mắn lần sau! 😄";
   }
-
-  const rewards = [
-    "🎉 Chúc mừng sinh nhật! 🎉",
-    "🎁 Chúc bạn một ngày sinh nhật tuyệt vời! 🎁",
-    "🌟 Mong rằng năm mới sẽ mang đến nhiều niềm vui! 🌟",
-    "💝 Chúc bạn luôn hạnh phúc và thành công! 💝",
-    "🎊 Happy Birthday! Wishing you all the best! 🎊",
-    "🎈 Chúc mừng sinh nhật! Mong rằng mọi ước mơ sẽ thành hiện thực! 🎈",
-    "🎯 Lần sau sẽ trúng lớn! 🎯",
-    "🍀 Chúc bạn may mắn! 🍀",
-    "✨ Có thể lần sau sẽ tốt hơn! ✨",
-  ];
-
-  return rewards[Math.floor(Math.random() * rewards.length)];
+  if (count === 2) {
+    return "💋Hụt nữa rồi, đừng vội phần quà vẫn còn phía sau! 💋";
+  }
+  if (count === 3) {
+    return "(┬┬﹏┬┬)Ơ quà đâu... lại hụt rồi(┬┬﹏┬┬)";
+  }
 }
 
 // Biến đếm số hộp quà đã click
@@ -2045,7 +2037,7 @@ function jumpGiftBoxesToNewPosition() {
   showGiftReward("😄 Hộp quà đã nhảy đến vị trí khác rồi!");
 }
 
-function showGiftReward(message, showButtons = false) {
+function showGiftReward(message, showButtons = false, onAccept) {
   // Tạo popup thông báo
   const popup = document.createElement("div");
   popup.style.cssText = `
@@ -2123,7 +2115,11 @@ function showGiftReward(message, showButtons = false) {
     const skipBtn = document.getElementById("skipKiss");
 
     acceptBtn.addEventListener("click", () => {
-      resetGiftBoxClick();
+      if (typeof onAccept === "function") {
+        onAccept();
+      } else {
+        resetGiftBoxClick();
+      }
       document.body.removeChild(popup);
     });
 
@@ -2155,7 +2151,7 @@ function showGiftReward(message, showButtons = false) {
       setTimeout(() => {
         document.body.removeChild(popup);
       }, 500);
-    }, 3000);
+    }, 6000);
   }
 }
 
@@ -2387,8 +2383,8 @@ function animateGiftBoxes(time) {
 
 // Hàm tạo hộp quà sau khi hiệu ứng sinh nhật hoàn thành
 function spawnGiftBoxes() {
-  // Tạo 3-5 hộp quà (ít hơn để dễ nhìn)
-  const giftCount = 3 + Math.floor(Math.random() * 3);
+  // Tạo đúng 3 hộp quà duy nhất
+  const giftCount = 3;
   totalGiftBoxes = giftCount;
   giftBoxesClicked = 0; // Reset số hộp đã click
 
@@ -2570,9 +2566,68 @@ function onCanvasClick(event) {
 
       if (!clickedGiftBox.userData.clicked) {
         // Kiểm tra xem đã click đủ hộp quà chưa
-        if (giftBoxesClicked >= 1) {
+        if (giftBoxesClicked === 1) {
           // Đã click 1 hộp, yêu cầu hôn với nút chọn
-          showGiftReward("💋 Hôn 1 miếng để mở hộp quà tiếp theo! 💋", true);
+          showGiftReward(
+            "💋 Rep tin nhắn quá lâu, rep nhanh hơn để mở quà này ! 💋",
+            true,
+            () => {
+              // Đánh dấu đã click
+              clickedGiftBox.userData.clicked = true;
+              giftBoxesClicked++;
+              // Hiệu ứng khi click
+              clickedGiftBox.scale.setScalar(1.5);
+              setTimeout(() => {
+                clickedGiftBox.scale.setScalar(1);
+              }, 200);
+              // Hiển thị phần thưởng
+              const reward = createGiftReward(2);
+              showGiftReward(reward);
+              // Xóa hộp quà sau khi click
+              setTimeout(() => {
+                scene.remove(clickedGiftBox);
+                const index = giftBoxes.indexOf(clickedGiftBox);
+                if (index > -1) {
+                  giftBoxes.splice(index, 1);
+                }
+              }, 1000);
+            }
+          );
+          return;
+        }
+        if (giftBoxesClicked === 2) {
+          // Đã click 2 hộp, yêu cầu cầu hôn với modal khác
+          showGiftReward(
+            "(❁´◡`❁) Hmm, chưa đủ chân thành rồi, nhớ giữ lời hứa ban đầu nhá 🤭",
+            true,
+            () => {
+              // Đánh dấu đã click
+              clickedGiftBox.userData.clicked = true;
+              giftBoxesClicked++;
+              // Hiệu ứng khi click
+              clickedGiftBox.scale.setScalar(1.5);
+              setTimeout(() => {
+                clickedGiftBox.scale.setScalar(1);
+              }, 200);
+              // Hiển thị phần thưởng
+              const reward = createGiftReward(3);
+              showGiftReward(reward);
+              // Xóa hộp quà sau khi click
+              setTimeout(() => {
+                scene.remove(clickedGiftBox);
+                const index = giftBoxes.indexOf(clickedGiftBox);
+                if (index > -1) {
+                  giftBoxes.splice(index, 1);
+                }
+              }, 1000);
+              // Hiển thị thêm 1 thông báo sau khi reward đã hiện xong
+              setTimeout(() => {
+                showGiftReward(
+                  "😡Aww ! tức giận rồi đúng không! Mất niềm tin rồi đúng không! Ngôi sao của mình chỉ quanh quẩn trong ngân hà này thôi tìm kỹ nhá, 😉😉😉"
+                );
+              }, 6500); // 6s reward + 0.5s fade out
+            }
+          );
           return;
         }
 
@@ -2587,7 +2642,7 @@ function onCanvasClick(event) {
         }, 200);
 
         // Hiển thị phần thưởng (hộp đầu tiên luôn là may mắn lần sau)
-        const reward = createGiftReward(giftBoxesClicked === 1);
+        const reward = createGiftReward(1);
         showGiftReward(reward);
 
         // Xóa hộp quà sau khi click
